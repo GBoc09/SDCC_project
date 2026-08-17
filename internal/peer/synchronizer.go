@@ -1,0 +1,80 @@
+package peer
+
+import (
+	"context"
+	"fmt"
+	"time"
+
+	"github.com/GBoc09/SDCC_project/internal/registry"
+)
+
+type Synchronizer struct {
+	client   *Client
+	registry *registry.Registry
+	peers    []string
+	interval time.Duration
+}
+
+func NewSynchronizer(
+	client *Client,
+	store *registry.Registry,
+	peers []string,
+	interval time.Duration,
+) *Synchronizer {
+	return &Synchronizer{
+		client:   client,
+		registry: store,
+		peers:    append([]string(nil), peers...),
+		interval: interval,
+	}
+}
+
+func (s *Synchronizer) SyncOnce(
+	ctx context.Context,
+) []error {
+	var syncErrors []error
+
+	for _, peerURL := range s.peers {
+		_, err := s.client.Sync(
+			ctx,
+			peerURL,
+			s.registry,
+		)
+		if err != nil {
+			syncErrors = append(
+				syncErrors,
+				fmt.Errorf(
+					"synchronize with peer %q: %w",
+					peerURL,
+					err,
+				),
+			)
+		}
+	}
+
+	return syncErrors
+}
+func (s *Synchronizer) Run(ctx context.Context) {
+	if ctx.Err() != nil {
+		return
+	}
+
+	s.SyncOnce(ctx)
+
+	if s.interval <= 0 {
+		return
+	}
+
+	ticker := time.NewTicker(s.interval)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+
+		case <-ticker.C:
+			s.SyncOnce(ctx)
+		}
+	}
+}

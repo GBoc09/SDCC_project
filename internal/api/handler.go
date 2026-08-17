@@ -16,18 +16,71 @@ type Handler struct {
 func NewHandler(store *registry.Registry) http.Handler {
 	handler := &Handler{registry: store}
 	mux := http.NewServeMux()
+
 	mux.HandleFunc("GET /health", handler.health)
-	mux.HandleFunc("PUT /services/{name}/instances/{id}", handler.upsertInstance)
-	mux.HandleFunc("DELETE /services/{name}/instances/{id}", handler.deleteInstance)
+	mux.HandleFunc("GET /internal/state", handler.getState)
+	mux.HandleFunc("PUT /internal/state", handler.putState)
+	mux.HandleFunc(
+		"PUT /services/{name}/instances/{id}",
+		handler.upsertInstance,
+	)
+	mux.HandleFunc(
+		"DELETE /services/{name}/instances/{id}",
+		handler.deleteInstance,
+	)
 	mux.HandleFunc("GET /services/{name}", handler.discover)
 	mux.HandleFunc("DELETE /services/{name}", handler.deleteService)
+
 	return mux
 }
 
 func (h *Handler) health(w http.ResponseWriter, _ *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 }
+func (h *Handler) getState(
+	w http.ResponseWriter,
+	_ *http.Request,
+) {
+	state := h.registry.Snapshot()
+	writeJSON(w, http.StatusOK, state)
+}
+func (h *Handler) putState(
+	w http.ResponseWriter,
+	request *http.Request,
+) {
+	var state registry.RegistryState
 
+	decoder := json.NewDecoder(
+		io.LimitReader(request.Body, 1<<20),
+	)
+	decoder.DisallowUnknownFields()
+
+	if err := decoder.Decode(&state); err != nil {
+		writeError(
+			w,
+			http.StatusBadRequest,
+			"invalid registry state",
+		)
+		return
+	}
+
+	if err := ensureSingleJSONValue(decoder); err != nil {
+		writeError(
+			w,
+			http.StatusBadRequest,
+			"request body must contain one JSON object",
+		)
+		return
+	}
+
+	applied := h.registry.MergeState(state)
+
+	writeJSON(
+		w,
+		http.StatusOK,
+		map[string]int{"applied": applied},
+	)
+}
 func (h *Handler) upsertInstance(w http.ResponseWriter, request *http.Request) {
 	var input registry.InstanceInput
 	decoder := json.NewDecoder(io.LimitReader(request.Body, 1<<20))
