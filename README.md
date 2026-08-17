@@ -1,110 +1,280 @@
-# SDCC_project
-Progetto B1 di Sistemi Distribuiti e Cloud Computing A.A 2025/2026. 
+# SDCC Project — Distributed Service Registry
 
-### Descrizione 
-Il progetto ha l'obiettivo di realizzare un sistema distribuito in **Go** che implementi un **Service Registry decentralizzato e Tollerante ai guasti**. 
+Progetto B1 del corso di Sistemi Distribuiti e Cloud Computing, A.A. 2025/2026.
 
-Il sistema permetterà ai servizi di registrare, aggiornare, rimuovere e ricercare i propri endpoint senza dipendere da un sistema centrale. 
+Il progetto implementa in Go un Service Registry decentralizzato, replicato e tollerante all'indisponibilità temporanea dei nodi. Ogni nodo mantiene una copia del registro, accetta richieste client e converge con i peer tramite gossip immediato e sincronizzazione anti-entropy periodica.
 
-Ogni nodo del registry manterrà una copia delle informazioni sui servizi disponibili e collaborerà con gli altri nodi per propagare gli aggiornamenti e garantire la convergenza dei dati. 
+## Funzionalità
 
-### Obiettivi principali 
-Il sistema deve soddisfare i seguenti requisiti: 
-- decentralizzazione del service registry
-- eliminazione dello SPOF 
-- registrazione dinamica delle istanze dei servizi 
-- rimozione dinamica delle istanze 
-- discovery degli endpoint disponibili
-- tolleranza ai guasti o all'irragiungibilità temporanea di uno o più nodi
-- consistenza finale delle informazioni replicate
-- esecuzione del sistema tramite Docker Compose 
-- deployment su un'istanza EC2 di Amazon
+- registrazione e aggiornamento dinamico delle istanze;
+- discovery delle sole istanze attive;
+- rimozione di una singola istanza o di un intero servizio;
+- tombstone per impedire la ricomparsa di dati obsoleti;
+- registry thread-safe in memoria;
+- replica bidirezionale tra più nodi;
+- gossip push immediato dopo le modifiche locali;
+- anti-entropy pull periodica per recuperare aggiornamenti persi;
+- risoluzione deterministica dei conflitti;
+- persistenza atomica su file JSON;
+- arresto controllato tramite `SIGINT` e `SIGTERM`;
+- esecuzione di un cluster a tre nodi tramite Docker Compose;
+- test unitari, race detector e test d'integrazione automatico.
 
-### Architettura del sistema 
-Il sistema è distribuito: ogni nodo può essere contattato da un client e gli aggiornamenti eseguiti all'interno di un nodo vengono propagati agli altri peer tramite gossip.
+## Architettura
 
-Un insieme di nodi crea il Service Registry; ciascun nodo contiene una copia del registro dei servizi. I nodi del registry comunicano con le istanze dei servizi applicativi, che forniscono le funzionalità vere e proprie.
-I client comunicano con i nodi del SR in modo che possano ricevere gli indirizzi delle istanze che gli interessano. 
+Ogni nodo espone le API del registry e mantiene una copia completa dei record.
 
-Esistono due tipi di record all'interno del sistema: 
-1. **record del servizio** --> (nome, stato, versione, nodoOrigine)
-2. **record dell'istanza** --> (nomeServizio, ID, endpoint, stato, versione, nodoOrigine)
+```text
+                       gossip push
+              +--------------------------+
+              |                          v
+Client ---> Registry 1 <-----------> Registry 2
+              ^       anti-entropy       |
+              |                          |
+              +-------- Registry 3 <-----+
 
-#### Registrazione
-Il servizio comunica: 
-- nome del servizio; 
-- ID univoco dell'istanza; 
-- indirizzo; 
-- porta; 
+Ogni nodo:
+  - conserva servizi, istanze e tombstone;
+  - salva periodicamente uno snapshot su disco;
+  - continua a servire richieste se un peer non è disponibile.
+```
 
-#### Discovery 
-Dato il nome di un servizio, il registry restituisce tutte le sue istanze attive. 
+Il gossip riduce il tempo necessario per propagare una modifica. L'anti-entropy rimane attiva come meccanismo di recupero: quando un nodo torna disponibile, scarica gli snapshot dei peer e applica solamente i record più recenti.
 
-#### Rimozione 
-Il sistema consente di rimuovere sia una singola istanza sia un intero servizio. La rimozione di un’istanza genera un tombstone relativo al suo identificativo. La rimozione di un servizio genera un tombstone associato al nome del servizio e rende inattive tutte le sue istanze. I tombstone vengono propagati tra i nodi del registry e impediscono che informazioni obsolete possedute da nodi temporaneamente offline vengano reintrodotte. Una registrazione successiva, dotata di una versione più recente, può riattivare il servizio.
+Gli snapshot completi vengono scambiati attraverso gli endpoint interni `GET /internal/state` e `PUT /internal/state`.
 
-### Modello dei dati 
-I servizi sono definiti tramite i seguenti parametri: 
-- ID istanza 
-- nome servizio 
-- endpoint (address, port)
-- stato (active, deleted)
-- versione
-- nodo che ha generato la modifica più recente
-- data dell'ultimo aggiornamento 
+## Modello dei dati
 
-I servizi vengono identificati tramite la chiave univoca composta dalla coppia *(ID, nomeServizio)* 
+Il sistema utilizza due tipi di record:
 
-**Risoluzione Conflitti**
-Se si verificano conflitti, la loro risoluzione avviene tramite la verifica dei seguenti parametri *(versione, IDnodo)*. 
-La regola stabilisce che: 
-- prima si confronta la versione --> la versione maggiore vince 
-- se le versioni sono uguali si confronta ID del nodo
-- anche le rimozioni incrementano la versione 
+1. `ServiceRecord`, identificato dal nome del servizio;
+2. `InstanceRecord`, identificato dalla coppia `(serviceName, ID)`.
 
-Ogni record possiede una propria versione. Il nodo incrementa la versione quando modifica il record.
+Entrambi contengono:
 
+- stato `active` o `deleted`;
+- versione logica;
+- identificativo del nodo che ha prodotto l'ultima modifica;
+- data dell'ultimo aggiornamento.
 
-**Peer non raggiungibile** 
-Quando un nodo del registry riceve una modifica, la applica alla propria copia locale e tenta di propagarla ai peer. Se un peer è temporaneamente irraggiungibile, l’operazione locale non viene bloccata. Quando il peer torna disponibile, recupera gli aggiornamenti mancanti mediante una sincronizzazione anti-entropy.
+Le istanze contengono inoltre indirizzo e porta dell'endpoint.
 
-### API 
-**Registrazione/Aggiornamento** --> PUT /services/{name}/instances/{ID} --> Istanza registrata / aggiornata 
+### Risoluzione dei conflitti
 
-**Discovery** --> GET /services/{name} --> istanze attive con quel nome 
+La precedenza tra due copie dello stesso record viene determinata dalla coppia:
 
-**DELETE** --> DELETE /services/{name}/instances/{ID} --> rimozione di una singola istanza
+```text
+(version, originNode)
+```
 
-**DELETE** --> DELETE /services/{name} --> rimozione dell'intero servizio con quel nome
+Le regole sono:
 
-**Stato del nodo** --> GET /health --> ritorna se il nodo è attivo
+1. vince la versione maggiore;
+2. a parità di versione, vince l'`originNode` maggiore in ordine lessicografico;
+3. se entrambi coincidono, il merge è idempotente e il record viene ignorato.
 
+Ogni modifica locale, incluse le cancellazioni, incrementa la versione logica. Quando un nodo riceve una versione remota più alta, fa avanzare anche il proprio contatore locale.
 
-### Test 
-1. registrazione nuova istanza 
-2. aggiornamento istanza esistente 
-3. registrazione di due istanze nello stesso servizio 
-4. discovery di un servizio inesistente 
-5. rimozione di un'istanza 
-6. rimozione ripetuta
-7. registrazione successiva alla rimozione 
-8. richieste contemporanee 
-9. richiesta con indirizzo o porta non validi 
-10. rimozione di un servizio 
-11. registrazione di un nuovo servizio
+### Tombstone
 
+Una cancellazione non rimuove fisicamente il record, ma imposta lo stato a `deleted` e incrementa la versione. Il tombstone viene replicato e impedisce a un nodo rimasto offline di reintrodurre una vecchia copia attiva.
 
-Per avviare il nodo:
+La cancellazione di un'istanza non elimina automaticamente il servizio. La cancellazione dell'intero servizio genera invece il tombstone del servizio e rende eliminate le sue istanze.
+
+## API HTTP
+
+### API pubbliche
+
+| Metodo | Percorso | Descrizione |
+|---|---|---|
+| `GET` | `/health` | Stato del nodo |
+| `PUT` | `/services/{name}/instances/{id}` | Registra o aggiorna un'istanza |
+| `GET` | `/services/{name}` | Restituisce le istanze attive |
+| `DELETE` | `/services/{name}/instances/{id}` | Elimina un'istanza |
+| `DELETE` | `/services/{name}` | Elimina un servizio e le sue istanze |
+
+Esempio di registrazione:
+
+```sh
+curl -i -X PUT \
+  http://localhost:8080/services/payments/instances/payment-1 \
+  -H 'Content-Type: application/json' \
+  -d '{"address":"10.0.0.1","port":9001}'
+```
+
+Discovery:
+
+```sh
+curl http://localhost:8080/services/payments
+```
+
+Cancellazione dell'istanza:
+
+```sh
+curl -i -X DELETE \
+  http://localhost:8080/services/payments/instances/payment-1
+```
+
+### API interne
+
+| Metodo | Percorso | Descrizione |
+|---|---|---|
+| `GET` | `/internal/state` | Restituisce lo snapshot completo |
+| `PUT` | `/internal/state` | Esegue il merge di uno snapshot remoto |
+
+Gli endpoint interni includono anche i tombstone e sono destinati esclusivamente alla comunicazione tra nodi. Nel deployment devono essere protetti dalla configurazione di rete e non esposti direttamente a Internet.
+
+## Configurazione
+
+Il nodo viene configurato tramite variabili d'ambiente.
+
+| Variabile | Default | Descrizione |
+|---|---:|---|
+| `NODE_ID` | `registry-1` | Identificativo univoco del nodo |
+| `HTTP_ADDRESS` | `:8080` | Indirizzo HTTP di ascolto |
+| `PEERS` | vuoto | URL dei peer separati da virgola |
+| `PEER_TIMEOUT` | `2s` | Timeout delle richieste tra peer |
+| `SYNC_INTERVAL` | `5s` | Intervallo della sincronizzazione anti-entropy |
+| `STATE_FILE` | vuoto | File JSON di persistenza; se vuoto la persistenza è disabilitata |
+| `PERSIST_INTERVAL` | `1s` | Intervallo di salvataggio dello snapshot |
+
+Le durate utilizzano il formato di Go, per esempio `500ms`, `2s` o `1m`.
+
+## Esecuzione locale
+
+Requisiti:
+
+- Go 1.23 o successivo;
+- `curl` per le verifiche manuali.
+
+Avvio di un singolo nodo in memoria:
 
 ```sh
 go run .
 ```
 
-Per impostazione predefinita il nodo usa l'identificativo `registry-1` e ascolta sulla porta `8080`. I valori possono essere configurati tramite `NODE_ID` e `HTTP_ADDRESS`.
+Avvio con persistenza:
 
-Per eseguire i test:
+```sh
+STATE_FILE=./data/registry-state.json \
+PERSIST_INTERVAL=1s \
+go run .
+```
+
+Esempio con due nodi, in due terminali differenti:
+
+```sh
+NODE_ID=registry-1 \
+HTTP_ADDRESS=:8080 \
+PEERS=http://localhost:8081 \
+go run .
+```
+
+```sh
+NODE_ID=registry-2 \
+HTTP_ADDRESS=:8081 \
+PEERS=http://localhost:8080 \
+go run .
+```
+
+## Docker Compose
+
+Il file `docker-compose.yml` crea tre nodi completamente connessi:
+
+| Nodo | Porta host | Peer interni |
+|---|---:|---|
+| `registry-1` | `8080` | `registry-2`, `registry-3` |
+| `registry-2` | `8081` | `registry-1`, `registry-3` |
+| `registry-3` | `8082` | `registry-1`, `registry-2` |
+
+Ogni nodo utilizza un volume Docker separato per `/data/registry-state.json`.
+
+Avvio:
+
+```sh
+docker compose up --build -d
+```
+
+Stato e log:
+
+```sh
+docker compose ps
+docker compose logs -f
+```
+
+Arresto conservando i dati:
+
+```sh
+docker compose down
+```
+
+Arresto eliminando anche i volumi:
+
+```sh
+docker compose down -v
+```
+
+Durante l'avvio possono comparire brevemente errori `connection refused`: ciascun nodo avvia subito la prima sincronizzazione e alcuni peer potrebbero non essere ancora in ascolto. Le sincronizzazioni successive vengono ritentate automaticamente.
+
+## Test
+
+Test completi:
 
 ```sh
 go test ./...
+```
+
+Controllo delle data race:
+
+```sh
 go test -race ./...
 ```
+
+### Test d'integrazione Docker
+
+Lo script automatico verifica:
+
+- health check dei tre nodi;
+- gossip immediato;
+- indisponibilità temporanea di un peer;
+- recupero tramite anti-entropy;
+- propagazione dei tombstone;
+- persistenza dopo la ricreazione di un container.
+
+Assicurarsi che Docker sia attivo e che le porte `8080`, `8081` e `8082` siano libere, quindi eseguire:
+
+```sh
+./scripts/integration-test.sh
+```
+
+Lo script usa un progetto Compose isolato e rimuove automaticamente le risorse create per il test.
+
+## Persistenza
+
+Ogni salvataggio viene effettuato in modo atomico:
+
+1. lo snapshot viene scritto in un file temporaneo;
+2. il contenuto viene sincronizzato su disco;
+3. il file temporaneo sostituisce quello precedente tramite rename.
+
+All'avvio il nodo carica lo stato persistito ed esegue il merge, ripristinando anche il contatore logico. Se il file non esiste, il nodo parte con uno stato vuoto. Un file presente ma non valido impedisce l'avvio, evitando di ignorare silenziosamente dati corrotti.
+
+## Struttura del progetto
+
+```text
+.
+├── main.go
+├── Dockerfile
+├── docker-compose.yml
+├── internal
+│   ├── api           # handler HTTP pubblici e interni
+│   ├── peer          # client, gossip e anti-entropy
+│   ├── persistence   # salvataggio atomico e worker periodico
+│   └── registry      # modello, operazioni locali e merge
+└── scripts
+    └── integration-test.sh
+```
+
+## Stato del progetto
+
+Sono completati registry locale, replica multi-nodo, gossip, anti-entropy, tombstone, persistenza, Docker Compose e test automatici. Il passaggio rimanente per la consegna completa è il deployment e la verifica su un'istanza Amazon EC2.

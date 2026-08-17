@@ -14,6 +14,7 @@ import (
 
 	"github.com/GBoc09/SDCC_project/internal/api"
 	"github.com/GBoc09/SDCC_project/internal/peer"
+	"github.com/GBoc09/SDCC_project/internal/persistence"
 	"github.com/GBoc09/SDCC_project/internal/registry"
 )
 
@@ -21,6 +22,7 @@ func main() {
 	nodeID := valueOrDefault("NODE_ID", "registry-1")
 	address := valueOrDefault("HTTP_ADDRESS", ":8080")
 	peers := parsePeers(os.Getenv("PEERS"))
+	stateFile := strings.TrimSpace(os.Getenv("STATE_FILE"))
 
 	peerTimeout, err := parseDuration(
 		os.Getenv("PEER_TIMEOUT"),
@@ -38,7 +40,50 @@ func main() {
 		log.Fatalf("invalid SYNC_INTERVAL: %v", err)
 	}
 
+	persistInterval := time.Second
+
+	if stateFile != "" {
+		persistInterval, err = parseDuration(
+			os.Getenv("PERSIST_INTERVAL"),
+			time.Second,
+		)
+		if err != nil {
+			log.Fatalf("invalid PERSIST_INTERVAL: %v", err)
+		}
+	}
+
 	store := registry.New(nodeID)
+
+	var fileStore *persistence.FileStore
+
+	if stateFile != "" {
+		fileStore = persistence.NewFileStore(stateFile)
+
+		state, err := fileStore.Load()
+		if err != nil {
+			log.Fatalf("load persisted state: %v", err)
+		}
+
+		applied := store.MergeState(state)
+
+		log.Printf(
+			"persistence enabled: file=%s interval=%s loaded=%d",
+			stateFile,
+			persistInterval,
+			applied,
+		)
+
+		defer func() {
+			if err := fileStore.Save(
+				store.Snapshot(),
+			); err != nil {
+				log.Printf(
+					"final persistence error: %v",
+					err,
+				)
+			}
+		}()
+	}
 
 	ctx, stop := signal.NotifyContext(
 		context.Background(),
@@ -48,6 +93,25 @@ func main() {
 	defer stop()
 
 	handler := api.NewHandler(store)
+
+	if fileStore != nil {
+		persister := persistence.NewPersister(
+			fileStore,
+			store,
+			persistInterval,
+		)
+
+		persister.SetErrorHandler(
+			func(err error) {
+				log.Printf(
+					"persistence error: %v",
+					err,
+				)
+			},
+		)
+
+		go persister.Run(ctx)
+	}
 
 	if len(peers) > 0 {
 		client := peer.NewClient(peerTimeout)
@@ -97,6 +161,7 @@ func main() {
 			peerTimeout,
 		)
 	}
+
 	server := &http.Server{
 		Addr:    address,
 		Handler: handler,

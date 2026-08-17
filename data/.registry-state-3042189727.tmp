@@ -1,0 +1,23 @@
+{
+  "services": [
+    {
+      "name": "payments",
+      "status": "active",
+      "version": 1,
+      "originNode": "registry-1",
+      "updatedAt": "2026-08-17T11:41:58.526201Z"
+    }
+  ],
+  "instances": [
+    {
+      "id": "payment-1",
+      "serviceName": "payments",
+      "address": "10.0.0.1",
+      "port": 9001,
+      "status": "deleted",
+      "version": 3,
+      "originNode": "registry-1",
+      "updatedAt": "2026-08-17T11:43:13.836203Z"
+    }
+  ]
+}
