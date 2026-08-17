@@ -3,6 +3,7 @@ package peer
 import (
 	"context"
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/GBoc09/SDCC_project/internal/registry"
@@ -13,6 +14,9 @@ type Synchronizer struct {
 	registry *registry.Registry
 	peers    []string
 	interval time.Duration
+
+	errorMu      sync.RWMutex
+	errorHandler func(error)
 }
 
 func NewSynchronizer(
@@ -28,7 +32,34 @@ func NewSynchronizer(
 		interval: interval,
 	}
 }
+func (s *Synchronizer) SetErrorHandler(
+	handler func(error),
+) {
+	s.errorMu.Lock()
+	defer s.errorMu.Unlock()
 
+	s.errorHandler = handler
+}
+
+func (s *Synchronizer) reportError(err error) {
+	s.errorMu.RLock()
+	handler := s.errorHandler
+	s.errorMu.RUnlock()
+
+	if handler != nil {
+		handler(err)
+	}
+}
+
+func (s *Synchronizer) syncAndReport(
+	ctx context.Context,
+) {
+	syncErrors := s.SyncOnce(ctx)
+
+	for _, err := range syncErrors {
+		s.reportError(err)
+	}
+}
 func (s *Synchronizer) SyncOnce(
 	ctx context.Context,
 ) []error {
@@ -59,7 +90,7 @@ func (s *Synchronizer) Run(ctx context.Context) {
 		return
 	}
 
-	s.SyncOnce(ctx)
+	s.syncAndReport(ctx)
 
 	if s.interval <= 0 {
 		return
@@ -74,7 +105,7 @@ func (s *Synchronizer) Run(ctx context.Context) {
 			return
 
 		case <-ticker.C:
-			s.SyncOnce(ctx)
+			s.syncAndReport(ctx)
 		}
 	}
 }

@@ -2,7 +2,6 @@ package peer
 
 import (
 	"context"
-	"net/http"
 	"net/http/httptest"
 	"testing"
 	"time"
@@ -11,8 +10,9 @@ import (
 	"github.com/GBoc09/SDCC_project/internal/registry"
 )
 
-func TestSynchronizerContinuesAfterPeerFailure(t *testing.T) {
-	source := registry.New("registry-2")
+func TestGossiperContinuesAfterPeerFailure(t *testing.T) {
+	source := registry.New("registry-1")
+	target := registry.New("registry-2")
 
 	_, _, err := source.UpsertInstance(
 		"payments",
@@ -26,33 +26,31 @@ func TestSynchronizerContinuesAfterPeerFailure(t *testing.T) {
 		t.Fatalf("create source instance: %v", err)
 	}
 
-	availablePeer := httptest.NewServer(api.NewHandler(source))
+	availablePeer := httptest.NewServer(api.NewHandler(target))
 	defer availablePeer.Close()
 
-	unavailablePeer := httptest.NewServer(api.NewHandler(
-		registry.New("registry-3"),
-	))
+	unavailablePeer := httptest.NewServer(
+		api.NewHandler(registry.New("registry-3")),
+	)
 	unavailablePeerURL := unavailablePeer.URL
 	unavailablePeer.Close()
 
-	target := registry.New("registry-1")
-	client := NewClient(100 * time.Millisecond)
-
-	synchronizer := NewSynchronizer(
-		client,
-		target,
+	gossiper := NewGossiper(
+		NewClient(100*time.Millisecond),
 		[]string{
 			unavailablePeerURL,
 			availablePeer.URL,
 		},
-		time.Second,
 	)
 
-	errors := synchronizer.SyncOnce(context.Background())
+	errors := gossiper.Publish(
+		context.Background(),
+		source.Snapshot(),
+	)
 
 	if len(errors) != 1 {
 		t.Fatalf(
-			"synchronization errors = %d, want 1",
+			"gossip errors = %d, want 1",
 			len(errors),
 		)
 	}
@@ -73,50 +71,9 @@ func TestSynchronizerContinuesAfterPeerFailure(t *testing.T) {
 		)
 	}
 }
-func TestSynchronizerRunSynchronizesPeriodically(t *testing.T) {
-	source := registry.New("registry-2")
-	target := registry.New("registry-1")
-
-	sourceHandler := api.NewHandler(source)
-	requests := make(chan struct{}, 10)
-
-	server := httptest.NewServer(
-		http.HandlerFunc(
-			func(w http.ResponseWriter, r *http.Request) {
-				sourceHandler.ServeHTTP(w, r)
-
-				if r.Method == http.MethodGet &&
-					r.URL.Path == "/internal/state" {
-					select {
-					case requests <- struct{}{}:
-					default:
-					}
-				}
-			},
-		),
-	)
-	defer server.Close()
-
-	synchronizer := NewSynchronizer(
-		NewClient(time.Second),
-		target,
-		[]string{server.URL},
-		10*time.Millisecond,
-	)
-
-	ctx, cancel := context.WithCancel(context.Background())
-	done := make(chan struct{})
-
-	go func() {
-		defer close(done)
-		synchronizer.Run(ctx)
-	}()
-
-	select {
-	case <-requests:
-	case <-time.After(time.Second):
-		t.Fatal("initial synchronization did not run")
-	}
+func TestGossiperProcessesNotifications(t *testing.T) {
+	source := registry.New("registry-1")
+	target := registry.New("registry-2")
 
 	_, _, err := source.UpsertInstance(
 		"payments",
@@ -130,6 +87,24 @@ func TestSynchronizerRunSynchronizesPeriodically(t *testing.T) {
 		t.Fatalf("create source instance: %v", err)
 	}
 
+	server := httptest.NewServer(api.NewHandler(target))
+	defer server.Close()
+
+	gossiper := NewGossiper(
+		NewClient(time.Second),
+		[]string{server.URL},
+	)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan struct{})
+
+	go func() {
+		defer close(done)
+		gossiper.Run(ctx)
+	}()
+
+	gossiper.Notify(source.Snapshot())
+
 	deadline := time.After(time.Second)
 	check := time.NewTicker(5 * time.Millisecond)
 	defer check.Stop()
@@ -139,7 +114,7 @@ func TestSynchronizerRunSynchronizesPeriodically(t *testing.T) {
 	for !synchronized {
 		select {
 		case <-deadline:
-			t.Fatal("periodic synchronization did not update target")
+			t.Fatal("gossip notification was not delivered")
 
 		case <-check.C:
 			instances := target.Discover("payments")
@@ -152,26 +127,24 @@ func TestSynchronizerRunSynchronizesPeriodically(t *testing.T) {
 	select {
 	case <-done:
 	case <-time.After(time.Second):
-		t.Fatal("synchronizer did not stop after cancellation")
+		t.Fatal("gossiper did not stop after cancellation")
 	}
 }
-func TestSynchronizerReportsSyncErrors(t *testing.T) {
+func TestGossiperReportsPublishErrors(t *testing.T) {
 	server := httptest.NewServer(
 		api.NewHandler(registry.New("registry-2")),
 	)
 	peerURL := server.URL
 	server.Close()
 
-	synchronizer := NewSynchronizer(
+	gossiper := NewGossiper(
 		NewClient(100*time.Millisecond),
-		registry.New("registry-1"),
 		[]string{peerURL},
-		time.Hour,
 	)
 
 	reportedErrors := make(chan error, 1)
 
-	synchronizer.SetErrorHandler(
+	gossiper.SetErrorHandler(
 		func(err error) {
 			reportedErrors <- err
 		},
@@ -182,8 +155,10 @@ func TestSynchronizerReportsSyncErrors(t *testing.T) {
 
 	go func() {
 		defer close(done)
-		synchronizer.Run(ctx)
+		gossiper.Run(ctx)
 	}()
+
+	gossiper.Notify(registry.RegistryState{})
 
 	select {
 	case err := <-reportedErrors:
@@ -192,7 +167,7 @@ func TestSynchronizerReportsSyncErrors(t *testing.T) {
 		}
 
 	case <-time.After(time.Second):
-		t.Fatal("synchronization error was not reported")
+		t.Fatal("gossip error was not reported")
 	}
 
 	cancel()
@@ -200,6 +175,6 @@ func TestSynchronizerReportsSyncErrors(t *testing.T) {
 	select {
 	case <-done:
 	case <-time.After(time.Second):
-		t.Fatal("synchronizer did not stop after cancellation")
+		t.Fatal("gossiper did not stop after cancellation")
 	}
 }

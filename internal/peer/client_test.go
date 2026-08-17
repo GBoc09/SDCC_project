@@ -216,3 +216,70 @@ func TestClientHandlesUnreachablePeer(t *testing.T) {
 		)
 	}
 }
+func TestClientPushesStateToPeer(t *testing.T) {
+	source := registry.New("registry-1")
+	target := registry.New("registry-2")
+
+	_, _, err := source.UpsertInstance(
+		"payments",
+		"payment-1",
+		registry.InstanceInput{
+			Address: "10.0.0.1",
+			Port:    8080,
+		},
+	)
+	if err != nil {
+		t.Fatalf("create source instance: %v", err)
+	}
+
+	server := httptest.NewServer(api.NewHandler(target))
+	defer server.Close()
+
+	client := NewClient(time.Second)
+
+	applied, err := client.Push(
+		context.Background(),
+		server.URL,
+		source.Snapshot(),
+	)
+	if err != nil {
+		t.Fatalf("push state to peer: %v", err)
+	}
+
+	if applied != 2 {
+		t.Fatalf(
+			"applied records = %d, want 2",
+			applied,
+		)
+	}
+
+	instances := target.Discover("payments")
+	if len(instances) != 1 {
+		t.Fatalf(
+			"target discovered %d instances, want 1",
+			len(instances),
+		)
+	}
+
+	got := instances[0]
+
+	if got.ID != "payment-1" {
+		t.Errorf(
+			"instance ID = %q, want %q",
+			got.ID,
+			"payment-1",
+		)
+	}
+
+	if got.Address != "10.0.0.1" {
+		t.Errorf(
+			"address = %q, want %q",
+			got.Address,
+			"10.0.0.1",
+		)
+	}
+
+	if got.Port != 8080 {
+		t.Errorf("port = %d, want %d", got.Port, 8080)
+	}
+}

@@ -9,14 +9,29 @@ import (
 	"github.com/GBoc09/SDCC_project/internal/registry"
 )
 
+type StateNotifier interface {
+	Notify(registry.RegistryState)
+}
+
 type Handler struct {
 	registry *registry.Registry
+	notifier StateNotifier
 }
 
 func NewHandler(store *registry.Registry) http.Handler {
-	handler := &Handler{registry: store}
-	mux := http.NewServeMux()
+	return NewHandlerWithNotifier(store, nil)
+}
 
+func NewHandlerWithNotifier(
+	store *registry.Registry,
+	notifier StateNotifier,
+) http.Handler {
+	handler := &Handler{
+		registry: store,
+		notifier: notifier,
+	}
+
+	mux := http.NewServeMux()
 	mux.HandleFunc("GET /health", handler.health)
 	mux.HandleFunc("GET /internal/state", handler.getState)
 	mux.HandleFunc("PUT /internal/state", handler.putState)
@@ -29,11 +44,20 @@ func NewHandler(store *registry.Registry) http.Handler {
 		handler.deleteInstance,
 	)
 	mux.HandleFunc("GET /services/{name}", handler.discover)
-	mux.HandleFunc("DELETE /services/{name}", handler.deleteService)
+	mux.HandleFunc(
+		"DELETE /services/{name}",
+		handler.deleteService,
+	)
 
 	return mux
 }
+func (h *Handler) notifyStateChange() {
+	if h.notifier == nil {
+		return
+	}
 
+	h.notifier.Notify(h.registry.Snapshot())
+}
 func (h *Handler) health(w http.ResponseWriter, _ *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 }
@@ -109,6 +133,7 @@ func (h *Handler) upsertInstance(w http.ResponseWriter, request *http.Request) {
 		status = http.StatusCreated
 	}
 	writeJSON(w, status, instance)
+	h.notifyStateChange()
 }
 
 func (h *Handler) discover(w http.ResponseWriter, request *http.Request) {
@@ -123,6 +148,7 @@ func (h *Handler) deleteInstance(w http.ResponseWriter, request *http.Request) {
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
+	h.notifyStateChange()
 }
 
 func (h *Handler) deleteService(w http.ResponseWriter, request *http.Request) {
@@ -132,6 +158,7 @@ func (h *Handler) deleteService(w http.ResponseWriter, request *http.Request) {
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
+	h.notifyStateChange()
 }
 
 func ensureSingleJSONValue(decoder *json.Decoder) error {
