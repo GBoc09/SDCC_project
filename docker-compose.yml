@@ -89,7 +89,40 @@ services:
       retries: 5
       start_period: 2s
 
+  registry-4:
+    profiles:
+      - recovery-test
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: sdcc-registry:local
+    environment:
+      NODE_ID: registry-4
+      HTTP_ADDRESS: ":8080"
+      PEERS: "http://registry-1:8080,http://registry-2:8080"
+      PEER_TIMEOUT: "2s"
+      SYNC_INTERVAL: "5s"
+      STATE_FILE: "/data/registry-state.json"
+      PERSIST_INTERVAL: "1s"
+    volumes:
+      - registry-4-data:/data
+    ports:
+      - "8083:8080"
+    restart: unless-stopped
+    healthcheck:
+      test:
+        - CMD
+        - wget
+        - -q
+        - --spider
+        - http://localhost:8080/health
+      interval: 5s
+      timeout: 2s
+      retries: 5
+      start_period: 2s
+
 volumes:
   registry-1-data:
   registry-2-data:
   registry-3-data:
+  registry-4-data:

@@ -249,6 +249,22 @@ Assicurarsi che Docker sia attivo e che le porte `8080`, `8081` e `8082` siano l
 
 Lo script usa un progetto Compose isolato e rimuove automaticamente le risorse create per il test.
 
+### Test di convergenza
+
+I test di convergenza misurano separatamente:
+
+- la latenza end-to-end del gossip, dalla registrazione su `registry-1` alla visibilità su `registry-2` e `registry-3`;
+- la latenza end-to-end del recupero anti-entropy dopo una temporanea sospensione di `registry-3`.
+
+I risultati riportano minimo, media, mediana, percentile p95 e massimo su 20 campioni. Poiché richiedono un cluster Docker già attivo e manipolano temporaneamente `registry-3`, vengono eseguiti soltanto su richiesta:
+
+```sh
+RUN_CONVERGENCE_TESTS=1 \
+go test -count=1 -v -timeout=5m ./tests/convergence
+```
+
+Il polling delle API avviene ogni 10 ms; questo intervallo rappresenta anche la risoluzione approssimativa delle misurazioni.
+
 ## Persistenza
 
 Ogni salvataggio viene effettuato in modo atomico:
@@ -270,9 +286,12 @@ All'avvio il nodo carica lo stato persistito ed esegue il merge, ripristinando a
 │   ├── api           # handler HTTP pubblici e interni
 │   ├── peer          # client, gossip e anti-entropy
 │   ├── persistence   # salvataggio atomico e worker periodico
+│   ├── reporting     # gestione condivisa degli error handler
 │   └── registry      # modello, operazioni locali e merge
-└── scripts
-    └── integration-test.sh
+├── scripts
+│   └── integration-test.sh
+└── tests
+    └── convergence   # misure di gossip e recovery anti-entropy
 ```
 
 ## Stato del progetto

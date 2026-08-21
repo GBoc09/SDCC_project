@@ -14,7 +14,7 @@ import (
 func TestClientSynchronizesFromPeer(t *testing.T) {
 	source := registry.New("registry-1")
 
-	_, _, err := source.UpsertInstance(
+	_, _, err := source.InsertUpdateInstance(
 		"payments",
 		"payment-1",
 		registry.InstanceInput{
@@ -220,7 +220,7 @@ func TestClientPushesStateToPeer(t *testing.T) {
 	source := registry.New("registry-1")
 	target := registry.New("registry-2")
 
-	_, _, err := source.UpsertInstance(
+	_, _, err := source.InsertUpdateInstance(
 		"payments",
 		"payment-1",
 		registry.InstanceInput{

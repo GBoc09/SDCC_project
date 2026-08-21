@@ -111,7 +111,7 @@ func TestPersisterSavesRegistryState(t *testing.T) {
 	fileStore := NewFileStore(path)
 	registryStore := registry.New("registry-1")
 
-	_, _, err := registryStore.UpsertInstance(
+	_, _, err := registryStore.InsertUpdateInstance(
 		"payments",
 		"payment-1",
 		registry.InstanceInput{

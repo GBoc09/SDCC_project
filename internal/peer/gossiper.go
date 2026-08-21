@@ -6,17 +6,17 @@ import (
 	"sync"
 
 	"github.com/GBoc09/SDCC_project/internal/registry"
+	"github.com/GBoc09/SDCC_project/internal/reporting"
 )
 
 type Gossiper struct {
+	reporting.ErrorHandler
+
 	client *Client
 	peers  []string
 
 	notifyMu sync.Mutex
 	updates  chan registry.RegistryState
-
-	errorMu      sync.RWMutex
-	errorHandler func(error)
 }
 
 func NewGossiper(
@@ -27,24 +27,6 @@ func NewGossiper(
 		client:  client,
 		peers:   append([]string(nil), peers...),
 		updates: make(chan registry.RegistryState, 1),
-	}
-}
-
-func (g *Gossiper) SetErrorHandler(
-	handler func(error),
-) {
-	g.errorMu.Lock()
-	defer g.errorMu.Unlock()
-
-	g.errorHandler = handler
-}
-func (g *Gossiper) reportError(err error) {
-	g.errorMu.RLock()
-	handler := g.errorHandler
-	g.errorMu.RUnlock()
-
-	if handler != nil {
-		handler(err)
 	}
 }
 
@@ -107,7 +89,7 @@ func (g *Gossiper) Run(ctx context.Context) {
 			publishErrors := g.Publish(ctx, state)
 
 			for _, err := range publishErrors {
-				g.reportError(err)
+				g.Report(err)
 			}
 		}
 	}

@@ -33,7 +33,7 @@ func New(nodeID string) *Registry {
 	}
 }
 
-func (r *Registry) UpsertInstance(serviceName, instanceID string, input InstanceInput) (InstanceRecord, bool, error) {
+func (r *Registry) InsertUpdateInstance(serviceName, instanceID string, input InstanceInput) (InstanceRecord, bool, error) {
 	serviceName = strings.TrimSpace(serviceName)
 	instanceID = strings.TrimSpace(instanceID)
 	input.Address = strings.TrimSpace(input.Address)

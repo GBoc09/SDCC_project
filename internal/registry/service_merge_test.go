@@ -8,7 +8,7 @@ import (
 func TestMergeServiceAcceptsNewerRecord(t *testing.T) {
 	store := New("registry-1")
 
-	_, _, err := store.UpsertInstance(
+	_, _, err := store.InsertUpdateInstance(
 		"payments",
 		"payment-1",
 		InstanceInput{
@@ -65,7 +65,7 @@ func TestMergeServiceAppliesTombstone(t *testing.T) {
 	store := New("registry-1")
 
 	for _, id := range []string{"payment-1", "payment-2"} {
-		_, _, err := store.UpsertInstance(
+		_, _, err := store.InsertUpdateInstance(
 			"payments",
 			id,
 			InstanceInput{

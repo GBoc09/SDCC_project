@@ -37,7 +37,7 @@ func NewHandlerWithNotifier(
 	mux.HandleFunc("PUT /internal/state", handler.putState)
 	mux.HandleFunc(
 		"PUT /services/{name}/instances/{id}",
-		handler.upsertInstance,
+		handler.insertUpdateInstance,
 	)
 	mux.HandleFunc(
 		"DELETE /services/{name}/instances/{id}",
@@ -105,7 +105,7 @@ func (h *Handler) putState(
 		map[string]int{"applied": applied},
 	)
 }
-func (h *Handler) upsertInstance(w http.ResponseWriter, request *http.Request) {
+func (h *Handler) insertUpdateInstance(w http.ResponseWriter, request *http.Request) {
 	var input registry.InstanceInput
 	decoder := json.NewDecoder(io.LimitReader(request.Body, 1<<20))
 	decoder.DisallowUnknownFields()
@@ -118,7 +118,7 @@ func (h *Handler) upsertInstance(w http.ResponseWriter, request *http.Request) {
 		return
 	}
 
-	instance, created, err := h.registry.UpsertInstance(
+	instance, created, err := h.registry.InsertUpdateInstance(
 		request.PathValue("name"),
 		request.PathValue("id"),
 		input,

@@ -3,20 +3,19 @@ package peer
 import (
 	"context"
 	"fmt"
-	"sync"
 	"time"
 
 	"github.com/GBoc09/SDCC_project/internal/registry"
+	"github.com/GBoc09/SDCC_project/internal/reporting"
 )
 
 type Synchronizer struct {
+	reporting.ErrorHandler
+
 	client   *Client
 	registry *registry.Registry
 	peers    []string
 	interval time.Duration
-
-	errorMu      sync.RWMutex
-	errorHandler func(error)
 }
 
 func NewSynchronizer(
@@ -32,32 +31,13 @@ func NewSynchronizer(
 		interval: interval,
 	}
 }
-func (s *Synchronizer) SetErrorHandler(
-	handler func(error),
-) {
-	s.errorMu.Lock()
-	defer s.errorMu.Unlock()
-
-	s.errorHandler = handler
-}
-
-func (s *Synchronizer) reportError(err error) {
-	s.errorMu.RLock()
-	handler := s.errorHandler
-	s.errorMu.RUnlock()
-
-	if handler != nil {
-		handler(err)
-	}
-}
-
 func (s *Synchronizer) syncAndReport(
 	ctx context.Context,
 ) {
 	syncErrors := s.SyncOnce(ctx)
 
 	for _, err := range syncErrors {
-		s.reportError(err)
+		s.Report(err)
 	}
 }
 func (s *Synchronizer) SyncOnce(

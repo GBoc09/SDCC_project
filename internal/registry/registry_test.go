@@ -9,7 +9,7 @@ import (
 func TestInstanceLifecycle(t *testing.T) {
 	store := New("registry-1")
 
-	created, wasCreated, err := store.UpsertInstance("payments", "payment-1", InstanceInput{
+	created, wasCreated, err := store.InsertUpdateInstance("payments", "payment-1", InstanceInput{
 		Address: "10.0.0.10",
 		Port:    8080,
 	})
@@ -17,7 +17,7 @@ func TestInstanceLifecycle(t *testing.T) {
 		t.Fatalf("create instance: created=%v err=%v", wasCreated, err)
 	}
 
-	updated, wasCreated, err := store.UpsertInstance("payments", "payment-1", InstanceInput{
+	updated, wasCreated, err := store.InsertUpdateInstance("payments", "payment-1", InstanceInput{
 		Address: "10.0.0.11",
 		Port:    9090,
 	})
@@ -47,7 +47,7 @@ func TestInstanceLifecycle(t *testing.T) {
 func TestDeleteAndRecreateService(t *testing.T) {
 	store := New("registry-1")
 	for _, id := range []string{"payment-1", "payment-2"} {
-		if _, _, err := store.UpsertInstance("payments", id, InstanceInput{
+		if _, _, err := store.InsertUpdateInstance("payments", id, InstanceInput{
 			Address: "127.0.0.1",
 			Port:    8080,
 		}); err != nil {
@@ -62,7 +62,7 @@ func TestDeleteAndRecreateService(t *testing.T) {
 		t.Fatalf("deleted service returned instances: %#v", instances)
 	}
 
-	if _, created, err := store.UpsertInstance("payments", "payment-3", InstanceInput{
+	if _, created, err := store.InsertUpdateInstance("payments", "payment-3", InstanceInput{
 		Address: "127.0.0.1",
 		Port:    8081,
 	}); err != nil || !created {
@@ -91,7 +91,7 @@ func TestValidation(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			_, _, err := New("registry-1").UpsertInstance(test.service, test.instance, test.input)
+			_, _, err := New("registry-1").InsertUpdateInstance(test.service, test.instance, test.input)
 			if !errors.Is(err, test.expected) {
 				t.Fatalf("got %v, want %v", err, test.expected)
 			}
@@ -99,7 +99,7 @@ func TestValidation(t *testing.T) {
 	}
 }
 
-func TestConcurrentUpserts(t *testing.T) {
+func TestConcurrentInsertUpdates(t *testing.T) {
 	store := New("registry-1")
 	const count = 100
 
@@ -108,7 +108,7 @@ func TestConcurrentUpserts(t *testing.T) {
 		waitGroup.Add(1)
 		go func(index int) {
 			defer waitGroup.Done()
-			_, _, err := store.UpsertInstance("workers", instanceID(index), InstanceInput{
+			_, _, err := store.InsertUpdateInstance("workers", instanceID(index), InstanceInput{
 				Address: "127.0.0.1",
 				Port:    8000 + index,
 			})

@@ -14,7 +14,7 @@ func TestGossiperContinuesAfterPeerFailure(t *testing.T) {
 	source := registry.New("registry-1")
 	target := registry.New("registry-2")
 
-	_, _, err := source.UpsertInstance(
+	_, _, err := source.InsertUpdateInstance(
 		"payments",
 		"payment-1",
 		registry.InstanceInput{
@@ -75,7 +75,7 @@ func TestGossiperProcessesNotifications(t *testing.T) {
 	source := registry.New("registry-1")
 	target := registry.New("registry-2")
 
-	_, _, err := source.UpsertInstance(
+	_, _, err := source.InsertUpdateInstance(
 		"payments",
 		"payment-1",
 		registry.InstanceInput{

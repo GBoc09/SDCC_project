@@ -14,7 +14,7 @@ import (
 func TestSynchronizerContinuesAfterPeerFailure(t *testing.T) {
 	source := registry.New("registry-2")
 
-	_, _, err := source.UpsertInstance(
+	_, _, err := source.InsertUpdateInstance(
 		"payments",
 		"payment-1",
 		registry.InstanceInput{
@@ -118,7 +118,7 @@ func TestSynchronizerRunSynchronizesPeriodically(t *testing.T) {
 		t.Fatal("initial synchronization did not run")
 	}
 
-	_, _, err := source.UpsertInstance(
+	_, _, err := source.InsertUpdateInstance(
 		"payments",
 		"payment-1",
 		registry.InstanceInput{
