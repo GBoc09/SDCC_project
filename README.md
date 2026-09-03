@@ -179,20 +179,31 @@ go run .
 
 ## Docker Compose
 
-Il file `docker-compose.yml` crea tre nodi completamente connessi:
+Il file `docker-compose.yml` crea tre nodi completamente connessi. Un quarto
+nodo opzionale viene utilizzato dal test di recupero dopo inattività
+prolungata:
 
 | Nodo | Porta host | Peer interni |
 |---|---:|---|
 | `registry-1` | `8080` | `registry-2`, `registry-3` |
 | `registry-2` | `8081` | `registry-1`, `registry-3` |
 | `registry-3` | `8082` | `registry-1`, `registry-2` |
+| `registry-4` | `8083` | `registry-1`, `registry-2` |
 
 Ogni nodo utilizza un volume Docker separato per `/data/registry-state.json`.
+`registry-4` appartiene al profilo Compose `recovery-test`, quindi non viene
+avviato insieme al cluster standard.
 
 Avvio:
 
 ```sh
 docker compose up --build -d
+```
+
+Avvio esplicito del quarto nodo:
+
+```sh
+docker compose up -d registry-4
 ```
 
 Stato e log:
@@ -202,16 +213,23 @@ docker compose ps
 docker compose logs -f
 ```
 
-Arresto conservando i dati:
+Arresto del cluster standard conservando i dati:
 
 ```sh
 docker compose down
 ```
 
-Arresto eliminando anche i volumi:
+Se è stato avviato anche `registry-4`, il profilo deve essere incluso nella
+pulizia:
 
 ```sh
-docker compose down -v
+docker compose --profile recovery-test down --remove-orphans
+```
+
+Arresto di tutti i nodi eliminando anche i volumi:
+
+```sh
+docker compose --profile recovery-test down -v --remove-orphans
 ```
 
 Durante l'avvio possono comparire brevemente errori `connection refused`: ciascun nodo avvia subito la prima sincronizzazione e alcuni peer potrebbero non essere ancora in ascolto. Le sincronizzazioni successive vengono ritentate automaticamente.
@@ -239,13 +257,40 @@ Lo script automatico verifica:
 - indisponibilità temporanea di un peer;
 - recupero tramite anti-entropy;
 - propagazione dei tombstone;
+- avvio di `registry-4` mentre `registry-3` è inattivo;
+- creazione, aggiornamento e cancellazione di molte istanze tramite
+  `registry-4`;
+- misurazione del tempo impiegato da `registry-3` per recuperare le modifiche
+  accumulate durante l'inattività;
 - persistenza dopo la ricreazione di un container.
 
-Assicurarsi che Docker sia attivo e che le porte `8080`, `8081` e `8082` siano libere, quindi eseguire:
+Assicurarsi che Docker sia attivo e che le porte `8080`, `8081`, `8082` e
+`8083` siano libere, quindi eseguire:
 
 ```sh
 ./scripts/integration-test.sh
 ```
+
+Il nuovo scenario usa questi valori predefiniti:
+
+| Variabile | Default | Descrizione |
+|---|---:|---|
+| `OFFLINE_DURATION` | `30` | Secondi aggiuntivi di inattività di `registry-3` |
+| `INSTANCE_COUNT` | `100` | Istanze create tramite `registry-4` |
+| `RECOVERY_TIMEOUT` | `60` | Secondi massimi concessi alla convergenza |
+
+I valori possono essere modificati al momento dell'esecuzione:
+
+```sh
+OFFLINE_DURATION=120 \
+INSTANCE_COUNT=500 \
+RECOVERY_TIMEOUT=90 \
+./scripts/integration-test.sh
+```
+
+Lo script riporta il tempo trascorso dal riavvio di `registry-3` fino al
+recupero delle istanze tramite anti-entropy. Verifica inoltre che aggiornamenti,
+tombstone e dati persistiti da `registry-4` siano conservati correttamente.
 
 Lo script usa un progetto Compose isolato e rimuove automaticamente le risorse create per il test.
 
@@ -296,4 +341,5 @@ All'avvio il nodo carica lo stato persistito ed esegue il merge, ripristinando a
 
 ## Stato del progetto
 
-Sono completati registry locale, replica multi-nodo, gossip, anti-entropy, tombstone, persistenza, Docker Compose e test automatici. Il passaggio rimanente per la consegna completa è il deployment e la verifica su un'istanza Amazon EC2.
+Sono completati registry locale, replica multi-nodo, gossip, anti-entropy, tombstone, persistenza, Docker Compose e test automatici.
+Il sistema è stato inoltre distribuito e verificato su un'istanza Amazon EC2, dove il test d'integrazione è stato eseguito con successo.
