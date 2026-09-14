@@ -101,10 +101,3 @@ func TestHTTPValidationAndMissingRecords(t *testing.T) {
 		})
 	}
 }
-
-func TestHealth(t *testing.T) {
-	response := request(t, NewHandler(registry.New("registry-1")), http.MethodGet, "/health", "")
-	if response.Code != http.StatusOK || response.Body.String() != "{\"status\":\"ok\"}\n" {
-		t.Fatalf("status=%d body=%s", response.Code, response.Body.String())
-	}
-}

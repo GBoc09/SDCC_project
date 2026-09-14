@@ -15,7 +15,7 @@ services:
     volumes: 
       - registry-1-data:/data
     ports:
-      - "8080:8080"
+      - "${REGISTRY_1_PORT:-8080}:8080"
     restart: unless-stopped
     healthcheck:
       test:
@@ -45,7 +45,7 @@ services:
     volumes: 
       - registry-2-data:/data
     ports:
-      - "8081:8080"
+      - "${REGISTRY_2_PORT:-8081}:8080"
     restart: unless-stopped
     healthcheck:
       test:
@@ -75,7 +75,7 @@ services:
     volumes: 
       - registry-3-data:/data
     ports:
-      - "8082:8080"
+      - "${REGISTRY_3_PORT:-8082}:8080"
     restart: unless-stopped
     healthcheck:
       test:
@@ -107,7 +107,7 @@ services:
     volumes:
       - registry-4-data:/data
     ports:
-      - "8083:8080"
+      - "${REGISTRY_4_PORT:-8083}:8080"
     restart: unless-stopped
     healthcheck:
       test:

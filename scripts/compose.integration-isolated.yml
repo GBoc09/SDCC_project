@@ -1,0 +1,12 @@
+# Disabilita la replica su tutti i nodi coinvolti, mantenendo API e volumi.
+# Usato solo dal progetto sdcc-integration per creare conflitti riproducibili.
+services:
+  registry-1:
+    environment:
+      PEERS: ""
+  registry-2:
+    environment:
+      PEERS: ""
+  registry-3:
+    environment:
+      PEERS: ""
