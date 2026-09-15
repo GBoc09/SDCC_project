@@ -8,6 +8,9 @@ import (
 	"github.com/GBoc09/SDCC_project/internal/reporting"
 )
 
+// Persister salva periodicamente lo stato del registry tramite FileStore.
+// Il salvataggio avviene in background, separatamente dalle richieste HTTP.
+
 type Persister struct {
 	reporting.ErrorHandler
 

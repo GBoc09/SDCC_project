@@ -9,6 +9,9 @@ import (
 	"github.com/GBoc09/SDCC_project/internal/reporting"
 )
 
+// Gossiper propaga in background gli snapshot notificati dalle API.
+// Gli invii sono diretti a tutti i peer configurati e avvengono in sequenza.
+
 type Gossiper struct {
 	reporting.ErrorHandler
 
@@ -30,6 +33,9 @@ func NewGossiper(
 	}
 }
 
+// Publish tenta di inviare lo snapshot a ciascun peer.
+// Il fallimento di un invio non impedisce i tentativi verso gli altri.
+// Restituisce gli errori raccolti.
 func (g *Gossiper) Publish(
 	ctx context.Context,
 	state registry.RegistryState,
@@ -56,6 +62,8 @@ func (g *Gossiper) Publish(
 
 	return publishErrors
 }
+
+// Notify accoda uno snapshot.
 func (g *Gossiper) Notify(
 	state registry.RegistryState,
 ) {
@@ -79,6 +87,7 @@ func (g *Gossiper) Notify(
 	}
 }
 
+// Run consuma le notifiche e invia gli snapshot ai peer,
 func (g *Gossiper) Run(ctx context.Context) {
 	for {
 		select {

@@ -1,5 +1,9 @@
 package registry
 
+// isNewerRecord confronta i record usando la coppia (versione, origine).
+// Prevale la versione maggiore a parità di versione,  mentre se sono uguali si guarda l'origine maggiore in ordine lessicografico.
+// Se entrambe coincidono, il record remoto non viene considerato più recente.
+
 func isNewerRecord(
 	remoteVersion uint64,
 	remoteOrigin string,
@@ -12,6 +16,9 @@ func isNewerRecord(
 
 	return remoteOrigin > localOrigin
 }
+
+// MergeInstance integra un'istanza remota se non è presente localmente
+// Restituisce true quando il record remoto viene applicato.
 func (r *Registry) MergeInstance(remote InstanceRecord) bool {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -41,6 +48,8 @@ func (r *Registry) MergeInstance(remote InstanceRecord) bool {
 
 	return true
 }
+
+// MergeService integra un servizio remoto applicando la stessa regola
 func (r *Registry) MergeService(remote ServiceRecord) bool {
 	r.mu.Lock()
 	defer r.mu.Unlock()

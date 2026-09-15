@@ -9,6 +9,8 @@ import (
 	"github.com/GBoc09/SDCC_project/internal/registry"
 )
 
+// StateNotifier permette agli handler di notificare uno snapshot senza dipendere dall'implementazione del gossip.
+
 type StateNotifier interface {
 	Notify(registry.RegistryState)
 }
@@ -105,6 +107,8 @@ func (h *Handler) putState(
 		map[string]int{"applied": applied},
 	)
 }
+
+// Restituisce 201 per una creazione o riattivazione, 200 per un aggiornamento.
 func (h *Handler) insertUpdateInstance(w http.ResponseWriter, request *http.Request) {
 	var input registry.InstanceInput
 	decoder := json.NewDecoder(io.LimitReader(request.Body, 1<<20))
@@ -136,11 +140,14 @@ func (h *Handler) insertUpdateInstance(w http.ResponseWriter, request *http.Requ
 	h.notifyStateChange()
 }
 
+// discover restituisce le istanze attive presenti nello stato locale.
+// Un servizio assente o eliminato produce una lista vuota.
 func (h *Handler) discover(w http.ResponseWriter, request *http.Request) {
 	instances := h.registry.Discover(request.PathValue("name"))
 	writeJSON(w, http.StatusOK, instances)
 }
 
+// Restituisce 404 se non esiste, 204 anche se era già eliminata
 func (h *Handler) deleteInstance(w http.ResponseWriter, request *http.Request) {
 	err := h.registry.DeleteInstance(request.PathValue("name"), request.PathValue("id"))
 	if errors.Is(err, registry.ErrInstanceNotFound) {
@@ -151,6 +158,7 @@ func (h *Handler) deleteInstance(w http.ResponseWriter, request *http.Request) {
 	h.notifyStateChange()
 }
 
+// Restituisce 404 se il servizio non esiste, altrimenti 204
 func (h *Handler) deleteService(w http.ResponseWriter, request *http.Request) {
 	err := h.registry.DeleteService(request.PathValue("name"))
 	if errors.Is(err, registry.ErrServiceNotFound) {

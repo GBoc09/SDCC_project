@@ -11,6 +11,9 @@ import (
 	"github.com/GBoc09/SDCC_project/internal/registry"
 )
 
+// FileStore salva e carica gli snapshot del registry nel file indicato.
+// La periodicità dei salvataggi è gestita separatamente dal Persister.
+
 type FileStore struct {
 	path string
 }

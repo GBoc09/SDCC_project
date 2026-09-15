@@ -2,11 +2,13 @@ package registry
 
 import "sort"
 
+// RegistryState rappresenta lo stato da scambiare con i peer o salvare su disco. Include servizi e istanze, anche eliminati.
 type RegistryState struct {
 	Services  []ServiceRecord  `json:"services"`
 	Instances []InstanceRecord `json:"instances"`
 }
 
+// Snapshot restituisce una copia dei record locali, inclusi i tombstone.
 func (r *Registry) Snapshot() RegistryState {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
@@ -41,6 +43,8 @@ func (r *Registry) Snapshot() RegistryState {
 
 	return state
 }
+
+// MergeState integra prima i servizi e poi le istanze dello stato ricevuto.
 func (r *Registry) MergeState(remote RegistryState) int {
 	applied := 0
 

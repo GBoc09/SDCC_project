@@ -17,8 +17,10 @@ var (
 	ErrInstanceNotFound   = errors.New("instance not found")
 )
 
+// Registry mantiene lo stato locale dei servizi e delle istanze.
+// Il contatore version e' condiviso da tutti i record del nodo
 type Registry struct {
-	mu        sync.RWMutex
+	mu        sync.RWMutex // protegge la versione da accessi concorrenti
 	nodeID    string
 	version   uint64
 	services  map[string]ServiceRecord
@@ -33,6 +35,9 @@ func New(nodeID string) *Registry {
 	}
 }
 
+// Inserimento e aggiornamrnto del servizio
+// Se non esiste viene ricreato o riattivato
+// Ritorniamo se il servizio è stato creato nuovo o riattivato
 func (r *Registry) InsertUpdateInstance(serviceName, instanceID string, input InstanceInput) (InstanceRecord, bool, error) {
 	serviceName = strings.TrimSpace(serviceName)
 	instanceID = strings.TrimSpace(instanceID)
@@ -44,6 +49,7 @@ func (r *Registry) InsertUpdateInstance(serviceName, instanceID string, input In
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
+	// assegnazione di due versioni successive : una creazione registry, altra per creazione istanza
 	now := time.Now().UTC()
 	service, serviceExists := r.services[serviceName]
 	if !serviceExists || service.Status == StatusDeleted {
@@ -76,6 +82,7 @@ func (r *Registry) InsertUpdateInstance(serviceName, instanceID string, input In
 	return instance, created, nil
 }
 
+// Restituzione SOLO istanze attive se il servizio attivo
 func (r *Registry) Discover(serviceName string) []InstanceRecord {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
@@ -97,6 +104,7 @@ func (r *Registry) Discover(serviceName string) []InstanceRecord {
 	return result
 }
 
+// DeleteInstance conserva l'istanza come tombstone con una nuova versione
 func (r *Registry) DeleteInstance(serviceName, instanceID string) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -121,6 +129,7 @@ func (r *Registry) DeleteInstance(serviceName, instanceID string) error {
 	return nil
 }
 
+// DeleteService marca come eliminati il servizio e le sue istanze
 func (r *Registry) DeleteService(serviceName string) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()

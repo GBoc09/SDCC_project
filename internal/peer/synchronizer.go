@@ -9,6 +9,8 @@ import (
 	"github.com/GBoc09/SDCC_project/internal/reporting"
 )
 
+// Synchronizer recupera gli snapshot dei peer e li integra nel registry locale.
+// La sincronizzazione periodica permette di recuperare aggiornamenti non ricevuti tramite gossip.
 type Synchronizer struct {
 	reporting.ErrorHandler
 
@@ -31,6 +33,8 @@ func NewSynchronizer(
 		interval: interval,
 	}
 }
+
+// syncAndReport esegue un ciclo di sincronizzazione
 func (s *Synchronizer) syncAndReport(
 	ctx context.Context,
 ) {
@@ -65,6 +69,9 @@ func (s *Synchronizer) SyncOnce(
 
 	return syncErrors
 }
+
+// Run esegue una prima sincronizzazione senza attendere l'intervallo periodico
+// Dopo il primo ciclo avvia il timer ed esegue i cicli successivi
 func (s *Synchronizer) Run(ctx context.Context) {
 	if ctx.Err() != nil {
 		return
@@ -76,6 +83,7 @@ func (s *Synchronizer) Run(ctx context.Context) {
 		return
 	}
 
+	// I cicli vengono eseguiti uno alla volta: un ciclo lento può ritardare quelli successivi.
 	ticker := time.NewTicker(s.interval)
 	defer ticker.Stop()
 

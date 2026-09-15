@@ -28,6 +28,7 @@ func NewClient(timeout time.Duration) *Client {
 	}
 }
 
+// Acquisizione snapshot tramite GET
 func (c *Client) Sync(
 	ctx context.Context,
 	peerURL string,
@@ -76,6 +77,8 @@ func (c *Client) Sync(
 
 	return target.MergeState(state), nil
 }
+
+// Invia lo snapshot locale tramite PUT
 func (c *Client) Push(
 	ctx context.Context,
 	peerURL string,
