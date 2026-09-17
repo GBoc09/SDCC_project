@@ -5,8 +5,7 @@ Registro di servizi sviluppato in Go, con replica tramite gossip e anti-entropy 
 
 ## Installazione e avvio
 
-Sono necessari Docker con il plugin Compose e `curl`. Go 1.23.4 o successivo serve solo per eseguire il programma o i test Go direttamente sull’host.
-
+Sono necessari Docker con il plugin Compose e `curl`. Go 1.23.4 o successivo serve solo per eseguire il programma.
 Scaricare il repository, aprire un terminale nella cartella del progetto e avviare il cluster:
 
 ```sh
@@ -85,11 +84,9 @@ go test ./...
 go test -race ./...
 ```
 
-Il test di integrazione richiede Docker attivo, Bash, `curl` e `jq`. Verifica propagazione, conflitti, recupero dei nodi e persistenza. Usa un progetto Compose dedicato e ne elimina container e volumi al termine. Per eseguirlo anche con il cluster principale acceso, usare porte alternative libere:
+Il test di integrazione richiede Docker attivo, Bash, `curl` e `jq`. Verifica propagazione, conflitti, recupero dei nodi e persistenza. Usa un progetto Compose dedicato e ne elimina container e volumi al termine.
 
 ```sh
-REGISTRY_1_PORT=18080 REGISTRY_2_PORT=18081 \
-REGISTRY_3_PORT=18082 REGISTRY_4_PORT=18083 \
 bash scripts/integration-test.sh
 ```
 
@@ -98,8 +95,6 @@ Gli esperimenti di convergenza richiedono Go e il cluster principale avviato sul
 ```sh
 RUN_CONVERGENCE_TESTS=1 go test -count=1 -v -timeout=5m ./tests/convergence
 ```
-
-Senza questa variabile gli esperimenti vengono saltati da `go test ./...`.
 
 ## Arresto e pulizia
 
