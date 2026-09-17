@@ -87,7 +87,7 @@ go test -race ./...
 Il test di integrazione richiede Docker attivo, Bash, `curl` e `jq`. Verifica propagazione, conflitti, recupero dei nodi e persistenza. Usa un progetto Compose dedicato e ne elimina container e volumi al termine.
 
 ```sh
-bash scripts/integration-test.sh
+bash scripts/test-service-registry.sh
 ```
 
 Gli esperimenti di convergenza richiedono Go e il cluster principale avviato sulle porte predefinite `8080–8082`. Eseguono 20 campioni per scenario e sospendono temporaneamente `registry-3`:
