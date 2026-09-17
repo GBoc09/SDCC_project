@@ -86,7 +86,8 @@ bash scripts/test-service-registry.sh
 Gli esperimenti di convergenza richiedono Go e il cluster principale avviato sulle porte predefinite `8080–8082`. Eseguono 20 campioni per scenario e sospendono temporaneamente `registry-3`:
 
 ```sh
-RUN_CONVERGENCE_TESTS=1 go test -count=1 -v -timeout=5m ./tests/convergence
+RUN_CONVERGENCE_TESTS=1 go test -count=1 -v -timeout=5m ./tests/convergencedocker compose up -d --build
+
 ```
 
 ## Arresto e pulizia
