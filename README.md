@@ -14,7 +14,7 @@ docker compose ps
 curl http://localhost:8080/health
 ```
 
-La risposta attesa è `{"status":"ok"}`. I tre nodi sono accessibili su `localhost:8080`, `localhost:8081` e `localhost:8082`. Ogni nodo conserva i dati in un volume Docker separato. Il quarto nodo, sulla porta `8083`, viene avviato dal test di integrazione quando necessario.
+La risposta attesa è `{"status":"ok"}`. I tre nodi sono accessibili su `localhost:8080`, `localhost:8081` e `localhost:8082`. Ogni nodo conserva i dati in un volume Docker separato. Il quarto nodo, sulla porta `8083`, viene avviato dal test Service Registry  quando necessario.
 
 Per visualizzare i log:
 
@@ -72,8 +72,6 @@ curl -i -X DELETE http://localhost:8080/services/payments
 ## Esecuzione su Amazon EC2
 
 Preparare un’istanza Linux con Docker e il plugin Compose, trasferirvi il progetto e lanciare gli stessi comandi di avvio tramite SSH. Tutti i container vengono eseguiti sulla stessa istanza EC2.
-
-Gli esempi con `localhost` funzionano dal terminale SSH. Per accedere dal proprio computer, sostituire `localhost` con l’indirizzo pubblico dell’istanza e consentire nel Security Group le porte TCP `8080–8082` dal proprio IP. Le API pubbliche e interne condividono le stesse porte e non hanno autenticazione: limitare l’accesso agli indirizzi necessari.
 
 ## Test
 
