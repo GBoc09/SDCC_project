@@ -77,14 +77,7 @@ Gli esempi con `localhost` funzionano dal terminale SSH. Per accedere dal propri
 
 ## Test
 
-Suite Go e controllo delle data race:
-
-```sh
-go test ./...
-go test -race ./...
-```
-
-Il test di integrazione richiede Docker attivo, Bash, `curl` e `jq`. Verifica propagazione, conflitti, recupero dei nodi e persistenza. Usa un progetto Compose dedicato e ne elimina container e volumi al termine.
+Il test complessivo per il funzionamento del Service Registry distribuito richiede Docker attivo, Bash, `curl` e `jq`. Verifica propagazione, conflitti, recupero dei nodi e persistenza. Usa un progetto Compose dedicato e ne elimina container e volumi al termine.
 
 ```sh
 bash scripts/test-service-registry.sh
