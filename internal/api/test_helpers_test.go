@@ -39,3 +39,11 @@ type recordingNotifier struct {
 func (n *recordingNotifier) Notify(state registry.RegistryState) {
 	n.states = append(n.states, state)
 }
+
+func createAPIInstance(t *testing.T, store *registry.Registry, id string) {
+	t.Helper()
+	if _, _, err := store.InsertUpdateInstance("payments", id,
+		registry.InstanceInput{Address: "10.0.0.1", Port: 8080}); err != nil {
+		t.Fatalf("create instance %q: %v", id, err)
+	}
+}

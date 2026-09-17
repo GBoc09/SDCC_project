@@ -217,19 +217,19 @@ wait_contains \
 
 echo "Registrazione su registry-1..."
 curl -fsS -X PUT \
-  "http://localhost:${REGISTRY_1_PORT}/services/integration/instances/integration-1" \
+  "http://localhost:${REGISTRY_1_PORT}/services/payment/instances/payment-1" \
   -H "Content-Type: application/json" \
-  -d '{"address":"integration-service","port":9000}' \
+  -d '{"address":"payment-service","port":9000}' \
   >/dev/null
 
 wait_contains \
-  "http://localhost:${REGISTRY_2_PORT}/services/integration" \
-  '"id":"integration-1"' \
+  "http://localhost:${REGISTRY_2_PORT}/services/payment" \
+  '"id":"payment-1"' \
   "gossip da registry-1 a registry-2"
 
 wait_contains \
-  "http://localhost:${REGISTRY_3_PORT}/services/integration" \
-  '"id":"integration-1"' \
+  "http://localhost:${REGISTRY_3_PORT}/services/payment" \
+  '"id":"payment-1"' \
   "gossip da registry-1 a registry-3"
 
 echo "Arresto temporaneo di registry-3..."
@@ -237,11 +237,11 @@ echo "Arresto temporaneo di registry-3..."
 
 echo "Eliminazione tramite registry-2..."
 curl -fsS -X DELETE \
-  "http://localhost:${REGISTRY_2_PORT}/services/integration/instances/integration-1" \
+  "http://localhost:${REGISTRY_2_PORT}/services/payment/instances/payment-1" \
   >/dev/null
 
 wait_empty_discovery \
-  "http://localhost:${REGISTRY_1_PORT}/services/integration" \
+  "http://localhost:${REGISTRY_1_PORT}/services/payment" \
   "tombstone propagato a registry-1"
 
 echo "Riavvio di registry-3..."
@@ -368,7 +368,7 @@ wait_contains \
   "tombstone conservato dopo la ricreazione del container"
 
 wait_empty_discovery \
-  "http://localhost:${REGISTRY_3_PORT}/services/integration" \
+  "http://localhost:${REGISTRY_3_PORT}/services/payment" \
   "istanza eliminata non ricompare"
 
 wait_state_equals "$recovered_state" "stato completo di registry-3 conservato nel volume" \
